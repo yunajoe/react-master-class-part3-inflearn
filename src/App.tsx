@@ -1,8 +1,7 @@
 import "./App.css";
-import UserProfileWrapper from "./components/UserProfileWrapper";
 
 function App() {
-  return <UserProfileWrapper />;
+  return <></>;
 }
 
 export default App;
