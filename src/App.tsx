@@ -1,7 +1,8 @@
 import "./App.css";
+import ProductDetailErrorWrapper from "./components/ProductDetailErrorWrapper";
 
 function App() {
-  return <></>;
+  return <ProductDetailErrorWrapper />;
 }
 
 export default App;
