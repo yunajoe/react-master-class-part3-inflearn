@@ -1,7 +1,8 @@
 import "./App.css";
+import HeavyComponentWrapper from "./components/HeaveComponentWrapper";
 
 function App() {
-  return <></>;
+  return <HeavyComponentWrapper />;
 }
 
 export default App;
