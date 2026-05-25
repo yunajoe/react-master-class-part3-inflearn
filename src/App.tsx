@@ -1,9 +1,8 @@
 import "./App.css";
-import ProductDetailErrorWrapper from "./components/ProductDetailErrorWrapper";
+import BombWrapper from "./components/BombWrapper";
 
 function App() {
-  return <ProductDetailErrorWrapper />;
+  return <BombWrapper />;
 }
 
 export default App;
-
