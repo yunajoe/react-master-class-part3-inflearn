@@ -1,8 +1,8 @@
 import "./App.css";
-import BombWrapper from "./components/BombWrapper";
+import UserSetting from "./components/UserSetting";
 
 function App() {
-  return <BombWrapper />;
+  return <UserSetting />;
 }
 
 export default App;
