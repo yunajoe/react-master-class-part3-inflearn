@@ -1,8 +1,8 @@
 import "./App.css";
-import HeavyForm from "./components/HeavyForm";
+import SmartForm from "./components/SmartForm";
 
 function App() {
-  return <HeavyForm />;
+  return <SmartForm />;
 }
 
 export default App;

@@ -1,64 +1,43 @@
-/* [File Path]: src/components/HeavyForm.tsx */
-import React, { useState } from "react";
+/* [File Path]: src/components/SmartForm.tsx */
+// SubmitHandler는 '값'이 아니라 '타입'이므로 'type' 키워드를 붙여 수입합니다.
+import { useForm, type SubmitHandler } from "react-hook-form";
 
-export default function HeavyForm() {
-  // 1. 거대한 상태 객체 초기화
-  // 필드 100개를 가진 객체를 생성합니다. { field_0: '', ..., field_99: '' }
-  const [formData, setFormData] = useState<Record<string, string>>(
-    Object.fromEntries(
-      Array.from({ length: 100 }, (_, i) => [`field_${i}`, ""]),
-    ),
-  );
+// 1. [TypeScript] 폼 데이터의 설계도를 정의합니다.
+interface FormInputs {
+  firstName: string;
+  email: string;
+  age: number;
+}
 
-  // 2. 통합 이벤트 핸들러
-  // 사용자가 어떤 인풋에 글자를 입력하든 이 함수가 실행됩니다.
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+export default function SmartForm() {
+  // 2. [useForm] RHF 엔진 가동
+  // 제네릭 <FormInputs>를 통해 필드 이름 오타를 방지합니다.
+  const { register, handleSubmit } = useForm<FormInputs>();
 
-    // ⚠️ 성능 저하의 주범: 전개 연산자(...prev)
-    // 글자 하나를 칠 때마다 기존 100개의 데이터를 복사하여 새로운 객체를 만듭니다.
-    // 100번의 복사 + 100개의 필드 렌더링 검사가 매 타이핑마다 발생합니다.
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+  // 3. [SubmitHandler] 데이터 수신 핸들러
+  const onSubmit: SubmitHandler<FormInputs> = (data) => {
+    // 수동으로 DOM을 뒤질 필요 없이 완성된 객체를 즉시 받습니다.
+    console.log("최종 데이터:", data);
   };
 
   return (
     <div style={{ padding: "20px" }}>
-      <h1>🚫 제어 컴포넌트 성능 지연 테스트</h1>
-      <p>
-        아래 인풋에 빠르게 타이핑해 보세요. 글자가 입력을 따라오지 못하는
-        'Lag'가 느껴지나요?
-      </p>
+      <h1>React Hook Form: 제로-렉 시스템</h1>
 
+      {/* 4. [handleSubmit] 고차 함수 
+          기본 이벤트를 막고, 검증 성공 시에만 onSubmit을 실행합니다. */}
       <form
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(5, 1fr)",
-          gap: "10px",
-        }}
+        onSubmit={handleSubmit(onSubmit)}
+        style={{ display: "flex", flexDirection: "column", gap: "10px" }}
       >
-        {Object.keys(formData).map((key) => (
-          <div
-            key={key}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              border: "1px solid #ddd",
-              padding: "5px",
-            }}
-          >
-            <label style={{ fontSize: "10px", color: "#666" }}>{key}</label>
-            <input
-              name={key}
-              value={formData[key]} // 상태와 1:1 동기화
-              onChange={handleChange}
-              placeholder="입력 시 지연 발생"
-              style={{ padding: "5px" }}
-            />
-          </div>
-        ))}
+        {/* register가 내부적으로 ref와 이벤트를 자동으로 꽂아줍니다. */}
+        {/* // <input name={name} onChange={onChange} onBlur={onBlur} ref={ref} />
+         */}
+        <input {...register("firstName")} placeholder="성함" />
+        <input {...register("email")} placeholder="이메일" />
+        <input type="number" {...register("age")} placeholder="나이" />
+
+        <button type="submit">데이터 제출</button>
       </form>
     </div>
   );
