@@ -1,8 +1,8 @@
 import "./App.css";
-import UserProfileWrapper from "./components/UserProfileWrapper";
+import HeavyForm from "./components/HeavyForm";
 
 function App() {
-  return <UserProfileWrapper />;
+  return <HeavyForm />;
 }
 
 export default App;
