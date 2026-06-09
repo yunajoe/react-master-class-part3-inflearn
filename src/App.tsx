@@ -1,8 +1,8 @@
 import "./App.css";
-import SmartForm from "./components/SmartForm";
+import TypedForm from "./components/TypedForm";
 
 function App() {
-  return <SmartForm />;
+  return <TypedForm />;
 }
 
 export default App;
