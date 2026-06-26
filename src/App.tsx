@@ -1,8 +1,8 @@
 import "./App.css";
-import TypedForm from "./components/TypedForm";
+import RegisterDeepDive from "./components/RegisterDeepDive";
 
 function App() {
-  return <TypedForm />;
+  return <RegisterDeepDive />;
 }
 
 export default App;
