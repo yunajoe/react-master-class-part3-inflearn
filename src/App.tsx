@@ -1,8 +1,8 @@
 import "./App.css";
-import RegisterDeepDive from "./components/RegisterDeepDive";
+import CustomUIForm from "./components/CustomUIForm";
 
 function App() {
-  return <RegisterDeepDive />;
+  return <CustomUIForm />;
 }
 
 export default App;
