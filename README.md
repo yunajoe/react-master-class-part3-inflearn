@@ -1,75 +1,15 @@
-# React + TypeScript + Vite
+### 45강: useFieldArray: 고유 ID 기반의 리스트 관리로 성능과 데이터 일관성을 동시에 잡는 기술
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+1.  useFieldArray를 사용해야 하는가?
+    데이터 무결성: RHF 내부 저장소와 UI 상태를 완벽하게 동기화합니다. "지웠는데 남아있는" 현상이 사라집니다.
+    고유 ID (field.id) 생성: 리액트에서 가장 골치 아픈 '인덱스를 키로 사용할 때 발생하는 버그'를 원천 차단합니다.
+    성능 최적화: 배열 전체를 리렌더링하지 않고, 추가/삭제/수정된 특정 항목만 정밀하게 업데이트합니다.
+    복합 로직 지원: 단순 추가/삭제를 넘어 순서 변경(move), 특정 위치 삽입(insert) 등을 메서드 하나로 해결합니다.
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
-
-Note: This will impact Vite dev & build performances.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+2.  useFieldArray 조작 도구 모음 리스트
+    append(obj): 리스트의 끝에 새로운 항목을 추가합니다. (가장 흔함)
+    prepend(obj): 리스트의 맨 앞에 추가합니다. (최신순 정렬 시 유용)
+    remove(index): 특정 순서의 항목을 삭제합니다. 연결된 유효성 검사와 에러 메시지도 함께 삭제됩니다.
+    move(from, to): 항목의 순서를 바꿉니다. 드래그 앤 드롭 구현 시 필수입니다.
+    insert(index, obj): 특정 중간 위치에 항목을 끼워 넣습니다.
+    replace(arr): 전체 리스트를 새로운 배열로 통째로 교체합니다.

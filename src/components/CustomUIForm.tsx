@@ -6,7 +6,7 @@ function CustomUIForm() {
   });
   return (
     <form
-      className="p-10 bg-slate-50 min-h-[300px] rounded-2xl border border-slate-200"
+      className="p-10 bg-slate-50 min-h-75 rounded-2xl border border-slate-200"
       onSubmit={(data) => {
         console.log("제출됨", data);
       }}

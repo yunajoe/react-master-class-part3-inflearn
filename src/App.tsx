@@ -1,8 +1,8 @@
 import "./App.css";
-import CustomUIForm from "./components/CustomUIForm";
+import SmartDynamicForm from "./components/SmartDynamicForm";
 
 function App() {
-  return <CustomUIForm />;
+  return <SmartDynamicForm />;
 }
 
 export default App;
