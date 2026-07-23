@@ -1,8 +1,8 @@
 import "./App.css";
-import SmartDynamicForm from "./components/SmartDynamicForm";
+import PerformanceDeepDive from "./components/PerformanceDeepDive";
 
 function App() {
-  return <SmartDynamicForm />;
+  return <PerformanceDeepDive />;
 }
 
 export default App;
