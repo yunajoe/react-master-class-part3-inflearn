@@ -194,3 +194,77 @@ const methods =
 | **Object.entries()**           | 서버 에러 객체 순회             | 필드가 많아도 일괄 자동 도장(Mapping) 가능       |
 | **type: "server"**             | 에러 출처 명시                  | 서버발 에러 구분 및 추후 스타일링/로깅 분리 용이 |
 | **reValidateMode: "onChange"** | 사용자 입력 모니터링            | 재입력 시 기존 서버 에러 자동 초기화로 UX 향상   |
+
+### 51강: 비동기 유효성 검사 & 실시간 UX 처리
+
+1. 동기(Sync) vs 비동기(Async) 검증
+
+- 동기 검증: 클라이언트 메모리 내에서 즉시 확인 (예: 필수 입력, 문자열 길이).
+- 비동기 검증: 외부 네트워크 통신을 거쳐 결과를 기다림 (예: 아이디 중복 확인, 닉네임 사용 가능 여부).
+
+2. validate 속성에 async 함수 주입
+
+- register 옵션의 validate에 async 함수를 전달하면, RHF 엔진은 Promise가 해결될 때까지 대기한 후 폼의 유효성(valid/invalid)을 확정합니다.
+
+```javascript
+<input
+  {...register("userId", {
+    required: "아이디는 필수입니다.",
+    // 💡 validate 속성에 async 함수 작성
+    validate: async (value) => {
+      const isAvailable = await checkIdDuplicate(value); // 서버 중복 체크 API 호출
+
+      // true 반환 시 통과, 문자열 반환 시 해당 문구가 에러 메시지로 등록됨
+      return isAvailable || "이미 사용 중인 아이디입니다.";
+    },
+  })}
+/>
+```
+
+3. 실시간 visual 피드백 (formState.isValidating)
+
+- 비동기 검사가 진행되는 대기 시간 동안 사용자에게 로딩 피드백을 제공하여 시스템 정지 오해를 방지
+
+```javascript
+const {
+  register,
+  formState: { isValidating, errors }
+} = useForm({
+  mode: "onBlur" // 포커스 해제 시 검증 실행 (서버 부하 감소)
+});
+
+return (
+  <div className="flex flex-col gap-2">
+    <div className="relative">
+      <input
+        {...register("userId", {
+          validate: async (v) => await checkIdDuplicate(v)
+        })}
+        className="border-2 p-3 w-full rounded-xl"
+      />
+
+      {/* 💡 1. 비동기 검사 중(isValidating === true) 로더 표시 */}
+      {isValidating && (
+        <span className="absolute right-3 top-3 text-xs text-blue-500 animate-pulse font-bold">
+          서버 확인 중...
+        </span>
+      )}
+    </div>
+    {/* 💡 2. 검증 실패 시 에러 메시지 노출 */}
+    {errors.userId && (
+      <p className="text-red-500 text-sm font-medium ml-1">
+        {errors.userId.message as string}
+      </p>
+    )}
+  </div>
+);
+
+```
+
+4. 서버 부하 절감을 위한 최적화 전략
+
+| 구분                           | 역할 / 설명                                       | 활용 예시                            |
+| :----------------------------- | :------------------------------------------------ | :----------------------------------- |
+| **`validate: async () => {}`** | 비동기 네트워크 통신 검증 주입                    | 아이디/이메일 중복 체크 API 연동     |
+| **`formState.isValidating`**   | 현재 비동기 검사가 진행 중인지 나타내는 불리언 값 | "서버 확인 중..." 스피너/텍스트 표시 |
+| **`mode: "onBlur"`**           | 입력 완료 후 포커스 이동 시 검증 실행             | 불필요한 연속 API 요청 방지          |
