@@ -1,8 +1,8 @@
 import "./App.css";
-import MultiStepForm from "./components/MultiStepForm";
+import ServerSyncForm from "./components/ServerSyncForm";
 
 function App() {
-  return <MultiStepForm />;
+  return <ServerSyncForm />;
 }
 
 export default App;
