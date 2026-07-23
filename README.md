@@ -45,4 +45,86 @@
   렌더링 수치:전체 컴포넌트 0회 발생.
   특징: 리액트 사이클을 거치지 않고 메모리 저장소에서 즉시 값을 탈취함.
 
-### 48강. 데이터 유지 전략: shouldUnregister: false 옵션을 활용한 복잡한 폼의 상태 보존 기법
+### 48강. 데이터 유지 전략: React Hook Form 다단계 폼 영속성(Persistence) 아키텍처
+
+1. 문제 해결 핵심: shouldUnregister: false
+
+- 문제: 리액트의 기본 생리상 컴포넌트가 언마운트(Unmount)되면 인풋 데이터가 화면에서 사라지며 유실됨.
+
+- 해결: RHF 옵션 중 shouldUnregister: false를 설정하면 DOM에서 인풋이 제거되어도 내부 메모리 스토어(Internal Store)에 입력값이 그대로 유지됨.
+
+2.  아키텍처 핵심 컴포넌트
+    | 구분 | 역할 | 동작 원리 |
+    | :---------------------------------- | :-------------------------------------------------------------------------- | :--------------------------------------------------------------------------- |
+    | **FormProvider**<br>(중앙 방송국) | `useForm`의 모든 도구(`register`, `handleSubmit` 등)를 하위 컴포넌트로 전파 | 내부적으로 React Context API를 활용하여 하위 트리에 폼 상태를 실시간 공급 |
+    | **useFormContext**<br>(전용 수신기) | 부모가 제공하는 폼 엔진에 직접 접속하여 필요한 도구를 추출 | **Prop Drilling 해결**: 중간 컴포넌트를 거치지 않고 부모 폼 상태에 직접 접근 |
+
+3.  주요 코드 구현 패턴
+
+- 메인 엔진 설정 (부모: MultiStepForm.tsx)
+
+```javascript
+import { useForm, FormProvider } from "react-hook-form";
+
+export default function MultiStepForm() {
+  const methods = useForm({
+    shouldUnregister: false, // 💡 핵심: 언마운트 시 데이터 삭제 방지 (영속성)
+    mode: "onChange", // 실시간 유효성 검증
+    defaultValues: {
+      step1: { email: "", name: "" },
+      step2: { address: "", phone: "" },
+      step3: { agreement: false },
+    },
+  });
+
+  return (
+    <FormProvider {...methods}>
+      <form
+        onSubmit={methods.handleSubmit((data) =>
+          console.log("최종 데이터:", data),
+        )}
+      >
+        <CurrentStepComponent />
+      </form>
+    </FormProvider>
+  );
+}
+```
+
+- 자식 컴포넌트 접속 (자식: Step1Component.tsx)
+
+```javascript
+import { useFormContext } from "react-hook-form";
+
+function Step1Component() {
+  // Prop Drilling 없이 부모의 폼 엔진 접속
+  const {
+    register,
+    formState: { errors },
+  } = useFormContext();
+
+  return (
+    <div className="space-y-4 p-6 bg-white rounded-lg shadow">
+      <h2 className="text-xl font-bold">Step 1: 기본 정보</h2>
+
+      {/* 객체 경로 기반 타겟팅 */}
+      <input
+        {...register("step1.email", { required: "이메일은 필수입니다." })}
+        placeholder="이메일 주소"
+        className="border-2 p-3 w-full rounded-md"
+      />
+      {errors.step1?.email && (
+        <p className="text-red-500 text-xs">{errors.step1.email.message}</p>
+      )}
+    </div>
+  );
+}
+```
+
+4. 수동 백업 vs shouldUnregister
+
+| 비교 항목          | 수동 백업 (Zustand/Context 등)                               | shouldUnregister: false (RHF 추천)                    |
+| :----------------- | :----------------------------------------------------------- | :---------------------------------------------------- |
+| **코드 복잡도**    | 단계 이동 시마다 `save` 함수 호출 및 전역 상태 동기화 필요   | **설정 한 줄로 자동화**                               |
+| **메타 상태 보존** | 에러 메시지(`errors`), 입력 여부(`isDirty`) 수동 백업 어려움 | 데이터뿐만 아니라 **에러/메타 상태까지 자동 보존**    |
+| **데이터 무결성**  | 전역 상태와 폼 엔진 상태 불일치 버그 위험 존재               | **단일 저장소(Single Source of Truth)**로 무결성 보장 |
