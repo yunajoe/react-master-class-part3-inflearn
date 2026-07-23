@@ -128,3 +128,69 @@ function Step1Component() {
 | **코드 복잡도**    | 단계 이동 시마다 `save` 함수 호출 및 전역 상태 동기화 필요   | **설정 한 줄로 자동화**                               |
 | **메타 상태 보존** | 에러 메시지(`errors`), 입력 여부(`isDirty`) 수동 백업 어려움 | 데이터뿐만 아니라 **에러/메타 상태까지 자동 보존**    |
 | **데이터 무결성**  | 전역 상태와 폼 엔진 상태 불일치 버그 위험 존재               | **단일 저장소(Single Source of Truth)**로 무결성 보장 |
+
+### 50강. setError 활용 전략 & 서버 에러 실시간 동기화
+
+1. 핵심 개요 (Overview)
+   목적: 서버 API에서 반환된 유효성 검사 에러를 수동으로 일일이 매핑하지 않고, RHF 폼 엔진에 자동으로 동기화하여 처리.
+
+핵심 이점: 단일 진실 공급원(Single Source of Truth) 원칙에 따라 UI는 에러 메시지를 판단하지 않고 전달받아 노출만 함 (서버 문구가 바뀌어도 프론트 수정 불필요).
+
+2. setError 기본 구문 (Basic Syntax)
+   특정 필드에 수동 또는 서버 에러 상태를 직접 주입하는 RHF 제공 메서드입니다.
+
+```javascript
+setError("email", {
+  type: "server", // 에러 유형 ("server" | "manual" 등)
+  message: "이미 사용 중인 이메일입니다.", // 화면에 출력될 메시지 (errors.email.message)
+});
+```
+
+```
+name: 에러를 표시할 input 필드 이름
+type: 에러 성격 명시 (클라이언트 유효성 검사가 아닌 서버 응답의 경우 보통 "server" 사용)
+message: errors[name].message 형태로 UI에 렌더링될 텍스트
+```
+
+3. 서버 에러 자동 매핑 패턴 (Object.entries)
+   서버에서 객체 형태({ fieldName: errorMessage })로 전달되는 에러 응답을 순회하며 한 번에 매핑합니다.
+
+```javascript
+const onSubmit = async (data: LoginFormInputs) => {
+  try {
+    await loginApi(data);
+    alert("로그인 성공!");
+  } catch (error: any) {
+    const serverErrors = error.response?.data?.errors;
+
+    if (serverErrors) {
+      Object.entries(serverErrors).forEach(([key, message]) => {
+        setError(key as keyof LoginFormInputs, {
+          type: "server",
+          message: message as string
+        });
+      });
+    }
+  }
+};
+```
+
+4. UX 최적화: 스마트 에러 해제 (Smart Clearing)
+
+- reValidateMode: "onChange" 옵션을 설정하면, 사용자가 에러가 난 필드를 다시 수정(타이핑)하기 시작할 때 기존에 주입된 서버 에러가 자동으로 사라져 자연스러운 UX를 제공합니다.
+
+```javascript
+const methods =
+  useForm <
+  LoginFormInputs >
+  {
+    reValidateMode: "onChange", // 💡 입력 수정 시 기존 에러 자동 해제
+  };
+```
+
+| 구분                           | 주요 역할 / 설정                | 효과                                             |
+| :----------------------------- | :------------------------------ | :----------------------------------------------- |
+| **setError**                   | 특정 필드에 에러 상태 직접 주입 | 서버 응답을 RHF 내부 에러 상태로 매핑            |
+| **Object.entries()**           | 서버 에러 객체 순회             | 필드가 많아도 일괄 자동 도장(Mapping) 가능       |
+| **type: "server"**             | 에러 출처 명시                  | 서버발 에러 구분 및 추후 스타일링/로깅 분리 용이 |
+| **reValidateMode: "onChange"** | 사용자 입력 모니터링            | 재입력 시 기존 서버 에러 자동 초기화로 UX 향상   |
