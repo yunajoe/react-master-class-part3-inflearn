@@ -1,8 +1,8 @@
 import "./App.css";
-import ServerSyncForm from "./components/ServerSyncForm";
+import AsyncValidationForm from "./components/AsyncValidationForm";
 
 function App() {
-  return <ServerSyncForm />;
+  return <AsyncValidationForm />;
 }
 
 export default App;
