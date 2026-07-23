@@ -1,8 +1,8 @@
 import "./App.css";
-import PerformanceDeepDive from "./components/PerformanceDeepDive";
+import MultiStepForm from "./components/MultiStepForm";
 
 function App() {
-  return <PerformanceDeepDive />;
+  return <MultiStepForm />;
 }
 
 export default App;

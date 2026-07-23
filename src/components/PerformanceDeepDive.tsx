@@ -13,7 +13,6 @@ function RenderCounter({ name }: { name: string }) {
 
 function TitleWatcher({ control }: { control: any }) {
   const title = useWatch({ control, name: "title" });
-
   return (
     <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
       <div className="flex justify-between items-center mb-2">
@@ -26,7 +25,6 @@ function TitleWatcher({ control }: { control: any }) {
     </div>
   );
 }
-
 interface PerformanceForm {
   title: string;
 }
