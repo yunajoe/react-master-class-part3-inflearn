@@ -380,3 +380,89 @@ export function UserEmailInput() {
 - 선언적 안정성: 개발자가 스타일링 코드를 실수하더라도 표준 aria-\* 속성이 유지되어 스크린 리더 등 보조공학 기기에서 항상 정상 작동함.
 
 - 재사용성 및 유지보수성: FormField 추상화 레이어를 통해 수많은 폼 입력창에서도 ID 오타나 속성 누락 없이 웹 접근성 표준 준수 가능.
+
+### 54강: dirtyFields 유틸리티 패턴을 활용한 PATCH 최적화
+
+React Hook Form(RHF)의 dirtyFields 장부를 활용해 전체 데이터(PUT) 대신 수정된 데이터만 추출(PATCH)하여 백엔드 통신 및 데이터 처리 효율을 극대화하는 실무 기법
+
+1. 핵심 개념 (PUT vs PATCH)
+
+- PUT (전체 수정): 변경되지 않은 값까지 포함해 모든 폼 데이터를 서버로 전송. (불필요한 네트워크 트래픽 및 서버 연산 발생)
+- PATCH (부분 수정): 초기값 대비 변경된 데이터만 선별하여 전송.
+
+2. dirtyFields 동작 원리
+
+- Dirty의 의미: 초기값(defaultValues)과 달라져 값이 수정되었음을 의미.
+- 작동 조건: useForm 선언 시 defaultValues가 기준점으로 설정되어 있어야 추적 가능
+- 데이터 구조: 실제 값이 아닌, 각 필드의 수정 여부를 기록하는 boolean (또는 중첩 객체) 형태.
+
+```javascript
+// 초기값: { name: "Gemini", age: 20 }
+// 수정후: { name: "Gemini AI", age: 20 }
+
+// dirtyFields 상태 (수정 여부 장부)
+{
+  name: true, // 변경됨
+  age: false  // 유지됨
+}
+
+```
+
+3. getDirtyValues 유틸리티 함수 (재귀적 탐색)
+
+```javascript
+
+/**
+ * 현재 데이터(data)와 수정 장부(dirtyFields)를 대조해 변경된 값만 추출
+ */
+export const getDirtyValues = (data: any, dirtyFields: any) => {
+  const dirtyValues: Record<string, any> = {};
+
+  Object.keys(dirtyFields).forEach((key) => {
+    const currentField = dirtyFields[key];
+
+    // 1. 중첩 객체인 경우 -> 재귀 호출로 내부 파고들기
+    if (typeof currentField === "object" && currentField !== null && !Array.isArray(currentField)) {
+      const childDirtyValues = getDirtyValues(data[key], currentField);
+      if (Object.keys(childDirtyValues).length > 0) {
+        dirtyValues[key] = childDirtyValues;
+      }
+    }
+    // 2. 단일 필드값이 true(수정됨)인 경우 -> 실제 데이터 추출
+    else if (currentField === true) {
+      dirtyValues[key] = data[key];
+    }
+  });
+
+  return dirtyValues;
+};
+```
+
+```javascript
+
+const { handleSubmit, formState: { dirtyFields, isDirty } } = useForm({
+  defaultValues: initialData // [기준점 설정]
+});
+
+const onSubmit = async (data: any) => {
+  // [관문 1] 변경된 내용이 아예 없으면 요청 차단
+  if (!isDirty) {
+    alert("수정된 내용이 없습니다.");
+    return;
+  }
+
+  // [관문 2] 유틸리티로 진짜 바뀐 값만 선별
+  const patchData = getDirtyValues(data, dirtyFields);
+
+  // [관문 3] 가벼워진 데이터만 PATCH 요청 전송
+  await updateProfileApi(patchData);
+};
+
+```
+
+4. 실무적 가치 (Architectural Insight)
+
+- 네트워크 & 서버 자원 절약: 필드가 수십 개인 대형 폼에서도 변경된 몇 개 필드만 가볍게 전송.
+
+- 데이터 무결성 및 보안 유지:
+  예: 프로필 수정 시 비밀번호 필드를 건드리지 않았다면 데이터가 전송되지 않으므로, 백엔드에서 비밀번호 재암호화 오동작 같은 부작용을 원천 차단.
