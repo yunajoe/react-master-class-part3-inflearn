@@ -466,3 +466,65 @@ const onSubmit = async (data: any) => {
 
 - 데이터 무결성 및 보안 유지:
   예: 프로필 수정 시 비밀번호 필드를 건드리지 않았다면 데이터가 전송되지 않으므로, 백엔드에서 비밀번호 재암호화 오동작 같은 부작용을 원천 차단.
+
+### 55강. 리셋(Reset)과 비동기 로딩의 함정 — reset vs resetField
+
+1. 핵심 개요 (Overview)
+
+- 목적: 서버 API에서 비동기로 데이터를 불러온 후 폼의 기본값(Default Values) 및 엔진 기준점(Source of Truth)을 안전하게 업데이트.
+
+- 핵심 이점: 마운트 시점 고착 문제를 해결하여 데이터 실종 버그를 방지하고, dirty 상태를 함께 초기화하여 정확한 폼 상태 관리 및 저장 버튼 UX 최적화.
+
+2. 비동기 로딩의 함정과 reset의 필요성
+
+- defaultValues: data 직접 주입의 위험성: useForm은 마운트 시점에 초기값을 고정하므로, 첫 렌더링 시 data가 undefined이면 폼이 비어있는 상태로 고착됨.
+
+- reset(userData)의 역할: 단순히 입력창을 비우는 것이 아니라, 엔진의 초기 기준점을 전달받은 서버 데이터로 통째로 교체하며 isDirty, touchedFields 등의 상태 장부를 깨끗하게 초기화함.
+
+```javascript
+/* useEffect와 reset을 활용한 기본 정석 패턴 */
+const {
+  register,
+  handleSubmit,
+  reset,
+  formState: { isDirty },
+} = useForm();
+
+useEffect(() => {
+  const fetchUserData = async () => {
+    const response = await fetch(`/api/users/${userId}`);
+    const userData = await response.json();
+
+    // 💡 데이터 로딩 완료 시점에 reset 실행 -> 기준점 교체 및 dirty 상태 초기화
+    reset(userData);
+  };
+
+  fetchUserData();
+}, [userId, reset]);
+```
+
+```javascript
+// 최신 트렌드: values 속성을 활용한 선언적 동기화
+const { data } = useQuery(["user", userId], fetchUser);
+
+const { register } = useForm({
+  values: data, // 💡 data가 도착하거나 변경될 때마다 자동 reset 처리
+});
+```
+
+```javascript
+// 정교한 제어를 위한 reset 옵션
+reset(userData, {
+  keepDirtyValues: true, // 사용자가 이미 직접 고친 필드 값은 덮어쓰지 않고 유지
+  keepErrors: true, // 기존 유효성 검사 에러 메시지 유지
+  keepDefaultValues: true, // UI 값만 바꾸고 초기 기준점(isDirty 판단 기준)은 유지
+  keepIsSubmitted: true, // 이전 제출 완료(isSubmitted) 상태 유지
+});
+```
+
+| 구분                      | 주요 역할 / 설정                            | 효과                                                  |
+| :------------------------ | :------------------------------------------ | :---------------------------------------------------- |
+| **reset(data)**           | 폼 엔진의 기준점(Source of Truth) 통째 교체 | 비동기 데이터 주입 및 `isDirty` 장부 초기화           |
+| **resetField(name)**      | 특정 필드 핀셋 초기화                       | 다른 필드에 영향을 주지 않고 단일 필드만 리셋         |
+| **values 옵션**           | 외부 reactive 데이터 자동 동기화            | `useEffect` + `reset` 작성 없이 선언적 코드 작성 가능 |
+| **keepDirtyValues: true** | 수정 중인 사용자 입력값 보호                | 실시간 데이터 갱신 시 작업 중인 입력 유지             |
