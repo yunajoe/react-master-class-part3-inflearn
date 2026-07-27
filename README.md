@@ -528,3 +528,75 @@ reset(userData, {
 | **resetField(name)**      | 특정 필드 핀셋 초기화                       | 다른 필드에 영향을 주지 않고 단일 필드만 리셋         |
 | **values 옵션**           | 외부 reactive 데이터 자동 동기화            | `useEffect` + `reset` 작성 없이 선언적 코드 작성 가능 |
 | **keepDirtyValues: true** | 수정 중인 사용자 입력값 보호                | 실시간 데이터 갱신 시 작업 중인 입력 유지             |
+
+### 56강. 데이터 정제(Transformer)와 결산
+
+1. 핵심 개요 (Overview)
+
+- 목적: 서버의 유효성 검사 거절 응답을 UI에 자동으로 매핑하고, 클라이언트의 데이터를 서버 DB 스펙에 맞게 정제(Serialization)하여 안전하게 전송함.
+
+- 핵심 이점:
+
+a. 서버 에러 자동화: 수동 매핑 없이 setError를 활용해 단 몇 줄로 정확한 필드 위치에 에러 메시지 주입.
+
+b. 데이터 무결성 보장: 원본 데이터의 불변성을 유지하며 서버가 즉시 저장 가능한 규격으로 환전(Transformer 패턴).
+
+c. 이벤트 중심 아키텍처 완결: 비제어 컴포넌트 기반으로 렌더링을 최소화하여 성능 최적화 달성.
+
+d. 서버 에러 자동 동기화 패턴 (setError + Object.entries)
+
+2. 서버 에러 자동 동기화 패턴 (setError + Object.entries)
+
+- 개념: 서버 응답(400 Bad Request)으로 들어오는 에러 객체를 순회하여 폼 엔진에 직접 강제 주입함.
+
+```javascript
+const onSubmit = async (data: LoginFormInputs) => {
+  try {
+    await loginApi(data);
+    alert("로그인 성공!");
+  } catch (error: any) {
+    const serverErrors = error.response?.data?.errors; // 예: { email: "중복된 이메일입니다." }
+
+    if (serverErrors) {
+      // 💡 서버가 전달한 [필드명, 메시지]를 순회하며 폼 에러 상태에 자동 매핑
+      Object.entries(serverErrors).forEach(([key, message]) => {
+        setError(key as keyof LoginFormInputs, {
+          type: "server", // 에러 출처 명시 (재입력 시 자동 Clear 용도)
+          message: message as string,
+        });
+      });
+    }
+  }
+};
+```
+
+3. 데이터 정제(Transformer) 패턴
+
+- 개념: UI에서 다루는 데이터와 API 전용 데이터를 분리하여 서버 DB 규격에 맞춰 타입을 변환 및 직렬화함.
+
+```javascript
+const onSubmit = async (formData: RawInputs) => {
+  // 💡 불변성을 유지하며 서버 전송 스펙으로 데이터 직렬화
+  const refinedData = {
+    ...formData,
+    price: Number(formData.price),           // 1. 타입 변환 (String -> Number)
+    tags: formData.tags.join(","),            // 2. 구조 압축 (Array -> String)
+    updatedAt: new Date().toISOString(),      // 3. 표준화 (ISO 8601 날짜 규격)
+  };
+
+  try {
+    await submitApi(refinedData);
+    alert("데이터가 서버 규격에 맞춰 전송되었습니다.");
+  } catch (error) {
+    console.error("전송 오류:", error);
+  }
+};
+```
+
+| 검증 항목                | 주요 확인 방법                  | 핵심 체크포인트                                                                                        |
+| :----------------------- | :------------------------------ | :----------------------------------------------------------------------------------------------------- |
+| **1. 렌더링 고립**       | Profiler / RenderCounter        | 특정 필드 입력 시 부모 컴포넌트 리렌더링 없이 해당 필드만 정밀 업데이트되는가? ($O(1)$ 성능)           |
+| **2. 데이터 정제**       | `onSubmit` 콘솔 JSON 출력       | 문자열-숫자 변환, 배열-문자열 결합 등 서버 직렬화 스펙이 완벽히 반영되었는가?                          |
+| **3. 서버 에러 동기화**  | 400 Bad Request 에러 시뮬레이션 | `setError`로 인풋 아래 메시지가 정확히 노출되고, 수정 시 에러가 자동으로 사라지는가?                   |
+| **4. 생명주기 & 영속성** | 다단계 폼 이동 및 비동기 로드   | 스텝 이동 시 값이 유지되며 (`shouldUnregister: false`), 데이터 로드 직후 `isDirty`가 `false`가 되는가? |
+| **5. 웹 접근성 (A11y)**  | 개발자 도구 Accessibility 탭    | `aria-describedby`가 에러 ID를 잘 가리키며, 에러 발생 시 `aria-invalid="true"`로 변하는가?             |
