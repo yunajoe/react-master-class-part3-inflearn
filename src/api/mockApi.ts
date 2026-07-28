@@ -42,3 +42,29 @@ export const fetchUserData = async (userId: number) => {
   );
   return response.json();
 };
+
+export interface User2 {
+  id: number;
+  name: string;
+  email: string;
+  bio: string;
+}
+
+// 호출 횟수를 추적하기 위한 카운터
+let callCount = 0;
+
+export const fetchUser2 = async (): Promise<User2> => {
+  callCount++;
+  console.log(`📡 [Network Log] 서버 요청 발생! (총 호출 횟수: ${callCount})`);
+  // 실제 네트워크 지연을 시뮬레이션합니다.
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        id: 1,
+        name: "프론트엔드 시니어",
+        email: "senior@dev.com",
+        bio: "리액트 아키텍처를 설계하는 개발자입니다.",
+      });
+    }, 1000);
+  });
+};

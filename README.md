@@ -76,7 +76,7 @@ useEffect(() => {
 
 - 우리가 가장 먼저 머릿속에서 지워야 할 고정관념은 "서버 데이터는 내 컴포넌트의 상태"라는 생각입니다. useEffect를 쓸 때는 데이터를 억지로 useState 주머니에 넣으려 했지만, 서버 데이터는 클라이언트 소유가 아니라 잠시 빌려온 정보
 
-```javascript
+```
 
 1. 거울의 원칙 (Mirror Principle): 클라이언트는 데이터를 직접 소유하고 관리하는 주체가 아니라, 서버의 원본 데이터를 반영하는 거울이 되어야 합니다.
 
@@ -205,3 +205,77 @@ export default function UserProfile({ userId }: { userId: number }) {
   );
 }
 ```
+
+### 61. 동일 데이터를 5개 컴포넌트에서 호출할 때 발생하는 5번의 네트워크 요청
+
+- "서버 데이터는 클라이언트가 소유하는 state가 아니라, 잠시 빌려와 서버와 지속적으로 맞추는 '동기화'의 대상이다."
+
+1. Traditional: useEffect 페칭의 3대 재앙
+
+2. Modern: TanStack Query로의 패러다임 전환
+
+- TanStack Query는 가져오기(Fetching) 패러다임을 동기화(Synchronization) 패러다임으로 전환하여 이 문제들을 해결
+
+```
+┌─── 컴포넌트 A (ProfileIcon)
+                  │
+[ QueryClient ] ──┼─── 컴포넌트 B (Sidebar)      ───►  서버 API 요청 1회만 발생!
+(중앙 캐시 관제 센터) │                                     (Deduping & Caching)
+                  └─── 컴포넌트 C (QuickMenu)
+```
+
+🎯 핵심 해결 기법
+
+```
+1. 요청 중복 제거 (Deduping): 동일한 queryKey를 가진 요청은 여러 컴포넌트에서 동시에 실행되어도 단 1회만 서버에 전달하고 결과를 공
+
+2. SWR (Stale-While-Revalidate) 캐싱: 캐시된 데이터(stale)를 사용자에게 즉시 보여주고, 백그라운드에서 신선한 데이터(fresh)를 가져와 매끄럽게 교체
+
+3. 선언적 코드 구조: isPending, error, data 상태를 라이브러리가 알아서 추적하므로 개발자는 UI 표현에만 집중
+
+
+```
+
+3. 코드 패턴 비교 (Before vs After)
+
+❌ [Before] 수동 방어 형태 (useEffect)
+
+```javascript
+// 상태 3개 + 경쟁 상태 방어 플래그 + 클린업 함수까지 수동 작성
+useEffect(() => {
+  let isCancelled = false;
+  setIsLoading(true);
+
+  fetchUser(id)
+    .then((res) => {
+      if (!isCancelled) setData(res);
+    })
+    .catch((err) => {
+      if (!isCancelled) setError(err);
+    })
+    .finally(() => {
+      if (!isCancelled) setIsLoading(false);
+    });
+
+  return () => {
+    isCancelled = true;
+  }; // 클린업 필수
+}, [id]);
+```
+
+✨ [After] Modern 선언적 방식 (useQuery)
+
+```javascript
+// 단 한 줄의 선언으로 캐싱, 중복 제거, 경쟁 상태 자동 방어
+const { data, isPending, error } = useQuery({
+  queryKey: ["user", id],
+  queryFn: () => fetchUser(id),
+  staleTime: 1000 * 60 * 5, // 5분간 캐시 유지
+});
+```
+
+| 문제 유형                               | 발생 원인                                                                   | 결과 및 치명적 영향                                                              |
+| :-------------------------------------- | :-------------------------------------------------------------------------- | :------------------------------------------------------------------------------- |
+| **① 네트워크 자원 비극**<br>(중복 요청) | 컴포넌트마다 각자의 `useEffect`에서 동일한 API를 독립적으로 호출            | • 동일 요청 N회 발생 (네트워크 병목)<br>• 서버 DB 부하 및 비용 증가              |
+| **② 경쟁 상태**<br>(Race Condition)     | 이전 비동기 요청이 완료되기 전에 새로운 요청이 발생하여 응답 순서가 꼬임    | • 느리게 도착한 이전 응답이 최신 데이터를 덮어씀<br>• 화면에 '유령 데이터' 표시  |
+| **③ 보일러플레이트 지옥**               | 경쟁 상태 방어(`isCancelled`), 로딩(`isLoading`), 에러(`error`)를 수동 작성 | • 비즈니스 로직보다 방어용 코드가 80% 이상을 차지<br>• 가독성 및 유지보수성 저하 |
