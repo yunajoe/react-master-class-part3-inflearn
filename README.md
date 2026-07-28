@@ -279,3 +279,53 @@ const { data, isPending, error } = useQuery({
 | **① 네트워크 자원 비극**<br>(중복 요청) | 컴포넌트마다 각자의 `useEffect`에서 동일한 API를 독립적으로 호출            | • 동일 요청 N회 발생 (네트워크 병목)<br>• 서버 DB 부하 및 비용 증가              |
 | **② 경쟁 상태**<br>(Race Condition)     | 이전 비동기 요청이 완료되기 전에 새로운 요청이 발생하여 응답 순서가 꼬임    | • 느리게 도착한 이전 응답이 최신 데이터를 덮어씀<br>• 화면에 '유령 데이터' 표시  |
 | **③ 보일러플레이트 지옥**               | 경쟁 상태 방어(`isCancelled`), 로딩(`isLoading`), 에러(`error`)를 수동 작성 | • 비즈니스 로직보다 방어용 코드가 80% 이상을 차지<br>• 가독성 및 유지보수성 저하 |
+
+### 62. Stale-While-Revalidate: 사용자에게는 캐시를, 뒤에서는 갱신을
+
+- TanStack Query는 SWR(Stale-While-Revalidate) 전략을 통해 "기다림 없는 사용자 경험"과 "최신 데이터 동기화"를 동시에 달성하는 지능형 관제 시스템
+
+1. 🏛️ 아키텍처 핵심 원칙 3가지
+   | 원칙 | 설명 | 비유 |
+   | :--- | :--- | :--- |
+   | **1. 요청 중복 제거**<br>(Deduplication) | 동일한 `queryKey` 요청이 동시에 발생하면 **단 1회만 실행**하고 결과를 모든 컴포넌트가 공유 | 3명이 같은 피자를 주문해도 **배달 오토바이는 1대만** 출동 |
+   | **2. SWR 캐싱**<br>(Stale-While-Revalidate) | 만료된 데이터(`stale`)라도 먼저 캐시에서 즉시 꺼내 보여주고, 백그라운드에서 신선한 데이터(`fresh`)를 새로고침 | 식탁 위의 피자를 바로 먹으면서, 백그라운드에서 새 피자 주문 |
+   | **3. 선언적 매니징**<br>(Declarative) | 로딩·에러·데이터 상태 관리를 매니저(`useQuery`)에게 위임하고, 컴포넌트는 규격에 맞게 렌더링에만 집중 | 주문 지시서만 전달하고 결과를 보고받는 구조 |
+2. ⚙️ useQuery 핵심 옵션 및 데이터 흐름
+
+```javascript
+const { data, isPending, error } = useQuery<TData, TError>({
+  queryKey: userKeys.detail(userId), // ① 데이터 고유 식별자 (바코드)
+  queryFn: () => fetchUserData(userId), // ② 실제 데이터를 가져오는 심부름 지침서 (Promise)
+  staleTime: 1000 * 60 * 5,            // ③ 데이터 신선도 유지 시간 (5분)
+  gcTime: 1000 * 60 * 10,           // ④ 미사용 데이터 메모리 보관 시간 (10분)
+});
+```
+
+- 반환 상태 (State)
+
+```
+- isPending: 데이터가 아예 없는 '첫 주문' 상태. (초기 로딩 처리 시 사용)
+- data: 성공적으로 도착한 데이터 본체. (타입 지정을 통해 자동 완성 제공)
+- error: 통신 중 실패 시 반환되는 에러 보고서.
+```
+
+- 핵심 타이머 (staleTime vs gcTime)
+
+| 구분       | `staleTime` (신선도 유지)                      | `gcTime` (메모리 정리)                                 |
+| :--------- | :--------------------------------------------- | :----------------------------------------------------- |
+| **역할**   | 데이터가 **'신선(Fresh)'**하다고 판단하는 시간 | 컴포넌트 언마운트 후 캐시를 **메모리에 남겨두는** 시간 |
+| **동작**   | 시간 내 재요청 시 **서버 호출 없이 캐시 반환** | 시간이 지나면 가비지 컬렉터가 **캐시 메모리에서 삭제** |
+| **기본값** | `0` (즉시 stale 상태로 지정)                   | `5분` (`staleTime`보다 항상 크거나 같아야 함)          |
+
+3. 🧪 중복 요청 제거 실증 (Disaster Solved)
+
+- 동일한 queryKey를 사용하는 컴포넌트 3개를 화면에 동시에 올려도, TanStack Query 관제 센터가 이를 하나의 요청으로 묶어 처리합니다.
+
+```javascript
+// App.tsx: 동일한 userId(1)를 가진 컴포넌트 3개 동시 마운트
+<QueryClientProvider client={queryClient}>
+  <UserProfile userId={1} />
+  <UserProfile userId={1} />
+  <UserProfile userId={1} />
+</QueryClientProvider>
+```
