@@ -1,16 +1,8 @@
 import "./App.css";
-import BoilerplateHell from "./components/BoilerplateHell";
-import DuplicateRequest from "./components/DuplicateRequest";
-import RaceCondition from "./components/RaceCondition";
+import TankStackQueryStarter from "./components/TankStackQueryStarter";
 
 function App() {
-  return (
-    <>
-      <RaceCondition />
-      <DuplicateRequest />
-      <BoilerplateHell />
-    </>
-  );
+  return <TankStackQueryStarter />;
 }
 
 export default App;

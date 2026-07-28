@@ -9,6 +9,13 @@ export interface User {
   email: string;
 }
 
+export interface UserData {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  website: string;
+}
 export const fetchPostById = async (id: number | string): Promise<Post> => {
   const delay = id === 1 || id === "1" ? 3000 : 500;
 
@@ -25,5 +32,13 @@ export const fetchPostById = async (id: number | string): Promise<Post> => {
 export const fetchUser = async (): Promise<User> => {
   console.log("📡 [Network Log] 실제 API 서버에 유저 정보 요청 중...");
   const response = await fetch(`https://jsonplaceholder.typicode.com/users/1`);
+  return response.json();
+};
+
+export const fetchUserData = async (userId: number) => {
+  console.log("📡 [Network Log] 실제 API 서버에 유저 정보 요청 중...");
+  const response = await fetch(
+    `https://jsonplaceholder.typicode.com/users/${userId}`,
+  );
   return response.json();
 };
