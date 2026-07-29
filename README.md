@@ -329,3 +329,185 @@ const { data, isPending, error } = useQuery<TData, TError>({
   <UserProfile userId={1} />
 </QueryClientProvider>
 ```
+
+### 63. 서버 상태 관리: Fresh, Stale, Inactive 상태와 데이터 생애주기(Lifecycle)
+
+1. 핵심 개요 (Overview)
+
+- 목적: 단순히 staleTime이 지나면 데이터가 상한다고 외우는 수준을 넘어, Fresh · Stale · Inactive 3대 상태 전이 메커니즘과 백그라운드 동기화(SWR) 및 가비지 컬렉션 과정을 통제함.
+
+- 핵심 메커니즘:
+
+```
+a. Fresh (신선): 캐시 데이터를 즉시 반환하며 서버 요청을 발생시키지 않음.
+b. Stale (상함): 캐시 데이터를 사용자에게 먼저 보여주며(SWR), 백그라운드에서 백그라운드 동기화(isFetching)를 트리거함.
+c. Inactive (비활성): 해당 데이터를 사용하는 모든 컴포넌트가 언마운트된 상태로, gcTime 타이머가 동작하여 메모리에서 영구 삭제
+
+```
+
+2. 데이터의 3대 핵심 상태 (Core States)
+
+```
+[Fetch Complete] ──► (Fresh) ──(staleTime 만료)──► (Stale) ──(Unmount)──► (Inactive) ──(gcTime 만료)──► [Memory Garbage Collected]
+```
+
+| 상태 (State)                | 정의 및 특징                                           | 컴포넌트 재마운트 / 창 포커스 시 동작                               |
+| :-------------------------- | :----------------------------------------------------- | :------------------------------------------------------------------ |
+| **Fresh**<br>(신선)         | 엔진이 "서버 값과 100% 일치한다"고 보증하는 기간       | **네트워크 요청 없음**. 메모리 캐시만 즉시 반환                     |
+| **Stale** ⚠️<br>(상함)      | 데이터가 서버와 다를 수 있다고 의심하는 상태           | **캐시 반환 + 백그라운드 Refetch** (`isFetching: true`) 동시에 실행 |
+| **Inactive** 💤<br>(비활성) | 데이터를 구독하는 컴포넌트가 화면에서 모두 사라진 상태 | **`gcTime` 타이머 가동**. 타이머 종료 시 캐시 영구 삭제             |
+
+3. 스텝 바이 스텝 구현 가이드 (Speed Test Lab)
+
+- Step 1. 가짜 API 및 타입 정의 (src/api/mockApi.ts)
+
+```javascript
+
+export interface User {
+  id: number;
+  name: string;
+}
+
+export const fetchUser = async (id: number): Promise<User> => {
+  console.log(`📡 [Network Log] 서버와 데이터(ID: ${id}) 동기화 시도 중...`);
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({ id, name: "시니어 아키텍트" });
+    }, 1000); // 1초 지연을 두어 isPending과 isFetching을 visual하게 구분
+  });
+};
+
+```
+
+- Step 2. 쿼리 키 공장 (src/queries/queryKeys.ts)
+
+```javascript
+export const userKeys = {
+  all: ['users'] as const,
+  detail: (id: number) => [...userKeys.all, 'detail', id] as const,
+};
+```
+
+- Step 3. 메인 관제 센터 설정 - 초고속 테스트 모드 (src/App.tsx)
+
+```javascript
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import LifecycleDemo from "./components/LifecycleDemo";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 2, // 2초 후 Stale 상태 전환
+      gcTime: 1000 * 5, // 언마운트 후 5초 지나면 가비지 컬렉션
+    },
+  },
+});
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
+        <h1>TanStack Query Lifecycle Lab 🧪 (Speed Ver.)</h1>
+        <p>2초 뒤에 데이터가 상하는 것을 목격하세요!</p>
+        <hr />
+        <LifecycleDemo />
+      </div>
+      <ReactQueryDevtools initialIsOpen={true} />
+    </QueryClientProvider>
+  );
+}
+```
+
+- Step 4. 생애주기 실증 컴포넌트 (src/components/LifecycleDemo.tsx)
+
+```javascript
+import { useQuery } from '@tanstack/react-query';
+import { fetchUser } from '../api/mockApi';
+import { userKeys } from '../queries/queryKeys';
+import type { User } from '../api/mockApi';
+
+const styles = {
+  container: { border: '2px solid #333', padding: '1.5rem', borderRadius: '12px', backgroundColor: '#f8f9fa' },
+  pending: { padding: '1rem', color: '#666', fontStyle: 'italic' },
+  error: { color: 'red', fontWeight: 'bold' },
+  fetching: { color: '#007bff', fontWeight: 'bold' },
+  guide: { marginTop: '20px', fontSize: '14px', color: '#555', borderTop: '1px solid #ddd', paddingTop: '10px' }
+};
+
+export default function LifecycleDemo() {
+  const { data, isPending, isFetching, error } = useQuery<User, Error>({
+    queryKey: userKeys.detail(1),
+    queryFn: () => fetchUser(1),
+  });
+
+  // 1. 캐시가 아예 없는 최초 1회 진입 시 (Pending)
+  if (isPending) return <div style={styles.pending}>⌛ 최초 데이터를 가져오는 중입니다... (Pending)</div>;
+  if (error) return <div style={styles.error}>❌ 에러 발생: {error.message}</div>;
+
+  return (
+    <div style={styles.container}>
+      <h3>유저 이름: {data.name}</h3>
+
+      {/* 2. Stale 상태에서 재요청 시: 데이터는 보여주면서 백그라운드 갱신 (Fetching) */}
+      {isFetching && (
+        <p style={styles.fetching}>
+          🔄 백그라운드에서 데이터를 최신화하고 있습니다... (Fetching)
+        </p>
+      )}
+
+      <div style={styles.guide}>
+        <p>💡 <strong>Fresh 테스트:</strong> 2초 내에 창을 다시 클릭해보세요. 아무 변화가 없습니다.</p>
+        <p>💡 <strong>Stale 테스트:</strong> 2초 뒤 창을 다시 클릭하면 파란색 메시지가 나타납니다.</p>
+        <p>💡 <strong>Inactive 테스트:</strong> 컴포넌트 언마운트 후 gcTime(5초)이 지나면 메모리에서 소멸됩니다.</p>
+      </div>
+    </div>
+  );
+}
+
+```
+
+4. 상태 및 플래그 조합 정리
+   | 구분 | `isPending` | `isFetching` | 설명 |
+   | :--------------------- | :---------- | :----------- | :--------------------------------------------------------------------- |
+   | **최초 페칭** | `true` | `true` | 캐시된 데이터가 없어 화면에 로딩 UI를 표시해야 함. |
+   | **Fresh 상태** | `false` | `false` | 신선한 데이터를 캐시에서 즉시 꺼내 보여주며 네트워크 요청 없음. |
+   | **Stale 재검증 (SWR)** | `false` | `true` | 이전 데이터를 화면에 유지한 채 백그라운드에서 몰래 새 데이터를 가져옴. |
+
+5. Stale 상태에서의 Query
+
+- 백그라운드 동기화 및 비교 과정 (Structural Sharing)
+
+```
+1. Stale 상태에서 트리거 발생
+- 화면 재포커스, 탭 전환, 네트워크 재연결, 혹은 컴포넌트 재마운트 시 백그라운드 요청(isFetching: true)이 나갑니다.
+
+2. 서버 응답 도착
+- 서버에서 최신 응답을 받아옵니다.
+
+3. 구조적 공유 (Structural Sharing) 비교
+- 리액트 쿼리는 단순히 전체를 무조건 덮어씌우는 것이 아니라, 기존 캐시 데이터와 새로 온 서버 데이터를 비교합니다.
+- 데이터가 같다면: 메모리 참조(Reference)를 그대로 유지합니다. (불필요한 리렌더링 방지)
+- 데이터가 다르다면: 변경된 데이터 객체/배열의 참조를 새것으로 업데이트하고 캐시를 교체합니다.
+
+```
+
+- 데이터가 바뀌었을 때 화면의 변화
+
+```
+- 데이터의 참조가 새 데이터로 바뀌는 순간, 리액트 쿼리의 useQuery 훅이 이를 감지하고 컴포넌트를 자동으로 리렌더링합
+
+- 사용자 입장: 화면을 계속 보고 있던 사용자는 별도의 뒤로 가기나 새로고침 없이, 백그라운드 요청이 완료되는 순간 화면의 글자나 값이 자연스럽게 최신 데이터로 바뀌는 것을 보게 됩니다.
+
+- 개발자 입장: 데이터 비교나 setState 같은 코드를 작성할 필요 없이, useQuery가 알아서 최신 데이터로 렌더링을 일으켜 줍니다.
+
+```
+
+- 요약
+
+```
+- 데이터가 서버와 다를 때: 캐시 데이터를 최신 서버 데이터로 교체하고, 화면을 자동 리렌더링하여 최신화합니다.
+
+- 데이터가 서버와 같을 때: 데이터가 바뀌지 않았음을 인지하고 불필요한 화면 리렌더링을 일으키지 않습니다.
+
+```
