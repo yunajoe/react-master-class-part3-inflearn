@@ -1,5 +1,7 @@
+import ErrorBoundaryComponent from "./components/ErrorBoundary";
+
 function App() {
-  return <></>;
+  return <ErrorBoundaryComponent />;
 }
 
 export default App;

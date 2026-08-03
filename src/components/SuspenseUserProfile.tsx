@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { fetchUserData } from "../api/mockApi";
+import { fetchUserDetail } from "../api/mockApi";
 import { userKeys } from "../queries/queryKeys";
 
 const styles = {
@@ -15,7 +15,7 @@ const styles = {
 function SuspenseUserProfile({ id }: { id: number }) {
   const { data: user } = useSuspenseQuery({
     queryKey: userKeys.detail(id),
-    queryFn: () => fetchUserData(id),
+    queryFn: () => fetchUserDetail(id),
   });
   return (
     <div style={styles.container}>

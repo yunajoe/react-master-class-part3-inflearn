@@ -68,3 +68,24 @@ export const fetchUser2 = async (): Promise<User2> => {
     }, 1000);
   });
 };
+
+export interface UserDetail {
+  id: number;
+  name: string;
+  email: string;
+  avatar: string;
+}
+export const fetchUserDetail = async (id: number): Promise<UserDetail> => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      //  테스트를 위해 ID가 0인 경우 에러 발생 시뮬레이션
+      if (id === 0) reject(new Error("존재하지 않는 유저입니다."));
+      resolve({
+        id,
+        name: "선언적 아키텍트",
+        email: "decl@dev.com",
+        avatar: "<https://api.dicebear.com/7.x/avataaars/svg?seed=1>",
+      });
+    }, 1000);
+  });
+};
