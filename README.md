@@ -511,3 +511,125 @@ export default function LifecycleDemo() {
 - 데이터가 서버와 같을 때: 데이터가 바뀌지 않았음을 인지하고 불필요한 화면 리렌더링을 일으키지 않습니다.
 
 ```
+
+### 64. 수동으로 관리하던 전역 로딩/에러 상태가 로직을 오염시킬 때
+
+1.  핵심 개요 (Overview)
+
+- TanStack Query가 제공하는 우아함의 가치를 체감하기 위해, 순수 React 환경에서 isLoading, error, 경합 조건(Race Condition) 등을 직접 처리할 때 코드가 어떻게 오염되는지 다룹니다.
+
+```
+- 핵심 주제: 수동 상태 관리가 가져오는 비즈니스 로직 오염과 유지보수성 저하
+
+- 핵심 원인: 선언적(Declarative)이 아닌 명령형(Imperative) UI 제어 및 UI 제어용 상태의 과도한 노출
+
+```
+
+2. 수동 상태 관리의 3가지 아키텍처 문제점
+   | 문제점 | 설명 | 비유/예시 |
+   | :--- | :--- | :--- |
+   | **명령형 오염** | 데이터가 "무엇(What)"인지 선언하기보다, 로딩 스위치를 켜고(true) 끄는(false) "어떻게(How)"에 매몰됨 | 매번 manual하게 전등 스위치를 껐다 켜야 함 |
+   | **전역 저장소 정체성 상실** | 비즈니스 로직을 담아야 할 전역 상태(Redux, Zustand)가 isUserLoading 같은 단순 UI 제어 플래그로 가득 참 | 금고에 일회용 젓가락을 쑤셔 넣는 것과 같음 |
+   | **강한 결합 (Tight Coupling)** | 비동기 데이터 통신과 UI 상태 업데이트 로직이 강하게 얽혀, 순수 비즈니스 로직 단위 테스트가 불가능해짐 | 부품이 하나로 용접되어 있어 교체가 불가능한 구조 |
+
+3. 실습 코드 사례 분석 (Lab Overview)
+
+```
+Case 1: 지옥의 보일러플레이트
+- 비즈니스 로직(데이터 표시)보다 상태를 초기화하고 정리하는 '청소 로직'이 더 거대해집니다.
+- 발생하는 노이즈
+단 하나의 API 요청을 위해 data, isLoading, error 총 3개의 상태를 개별 선언.
+try-catch-finally 블록 내에서 setIsLoading(true/false), setError(null) 등을 수동으로 제어.
+- 위험 요인: 개발자가 하나라도 setIsLoading(false) 처리를 누락하면 UI가 영원히 로딩 상태에 갇히는 버그 발생.
+- 명령형 상태 관리:setIsLoading(true/false)를 직접 호출하는 과정에서 누락이 발생하면 UI 버그로 직결됩니다.
+
+```
+
+```javascript
+
+import { useState, useEffect } from 'react';
+import { api } from '../api/mockApi';
+import type { UserData } from '../api/mockApi'; // ✅ Type-only import 적용
+
+export default function ManualUserFetcher() {
+  // 1. 비즈니스 데이터와 UI 상태를 위해 각각 3개의 상태 정의
+  const [data, setData] = useState<UserData | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      // 2. 요청 시작 시 로딩 스피너 활성화 및 이전 에러 초기화
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const result = await api.get<UserData>('/user');
+        setData(result.data);
+      } catch (err) {
+        // 3. 에러 타입 검증 후 안전하게 상태 저장
+        setError(err instanceof Error ? err : new Error('Unknown Error'));
+      } finally {
+        // 4. 요청 완료 후 로딩 스위치 비활성화
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (isLoading) return <div>⌛ 수동으로 로딩 불을 켜두었습니다... (isLoading: true)</div>;
+  if (error) return <div style={{ color: 'red' }}>❌ 에러 발생: {error.message}</div>;
+
+  return (
+    <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
+      <h4>유저 정보</h4>
+      <p>이름: {data?.name}</p>
+    </div>
+  );
+}
+```
+
+```
+Case 2: 경합 조건(Race Condition) 방어 로직
+- isCurrentRequest: 비동기 응답의 순서가 뒤바뀌는 것을 막기 위한 수동 장치입니다. 비즈니스 로직의 순수성을 해치는 대표적인 '노이즈'
+
+```
+
+```javascript
+import { useState, useEffect } from 'react';
+import { api } from '../api/mockApi';
+import type { UserData } from '../api/mockApi'; // ✅ Type-only import 적용
+
+export default function SafeUserDetail({ id }: { id: number }) {
+  const [data, setData] = useState<UserData | null>(null);
+
+  useEffect(() => {
+    // 1. 현재 요청이 여전히 유효한지 추적하는 boolean 타입의 '무시 플래그'입니다.
+    let isCurrentRequest = true;
+
+    const fetchDetail = async () => {
+      const result = await api.get<UserData>(`/detail/${id}`);
+
+      // 2. 배달 사고 방지: 오직 클린업 함수가 실행되기 전인 '유효한' 요청일 때만 업데이트합니다.
+      // 늦게 온 이전 응답이 최신 데이터를 덮어쓰지 못하게 막습니다.
+      if (isCurrentRequest) {
+        setData(result.data);
+      }
+    };
+
+    fetchDetail();
+
+    // 3. 클린업 함수: 다음 요청이 시작되거나 컴포넌트가 사라질 때 "방금 요청은 이제 무효야"라고 선언합니다.
+    return () => { isCurrentRequest = false; };
+  }, [id]);
+
+  return (
+    <div style={{ background: '#f0f0f0', padding: '1rem' }}>
+      <h4>상세 정보 (Race Condition 방어 중)</h4>
+      <p>{data ? data.name : '데이터를 가져오는 중...'}</p>
+    </div>
+  );
+}
+
+```
