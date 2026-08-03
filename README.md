@@ -633,3 +633,59 @@ export default function SafeUserDetail({ id }: { id: number }) {
 }
 
 ```
+
+### 65. 선언적 데이터 패칭 (Declarative Data Fetching)
+
+1. 핵심 개요
+
+- "어떻게(How)"가 아닌 "무엇(What)"에 집중하는 프로그래밍
+- 명령형(Imperative) 방식: isLoading, isError 상태 변화를 개발자가 일일이 수동 제어하는 방식.
+- 선언적(Declarative) 방식: 데이터가 준비되었을 때 그릴 UI(Plan A)와 준비되지 않았을 때 그릴 UI(Plan B)를 미리 선언하고, 실행 제어권은 React와 TanStack Query에 위임하는 방식.
+
+| 요소               | 역할               | 핵심 개념                                                              |
+| :----------------- | :----------------- | :--------------------------------------------------------------------- |
+| **Suspense**       | 중단 (대기실)      | 데이터가 로딩 중일 때 컴포넌트 실행을 잠시 멈추고 제어권을 상위로 위임 |
+| **Error Boundary** | 차단기 (안전 펜스) | 에러가 발생해도 앱 전체가 멈추지 않도록 에러를 감지하고 격리           |
+| **Fallback**       | 대비책 (Plan B)    | 데이터(Plan A)가 오기 전까지 보여줄 대체 UI (스켈레톤 UI, 에러 화면)   |
+
+2. 단계별 구현 가이드
+
+Step1. 라이브러리 설치
+
+- React 내장 ErrorBoundary 클래스의 한계를 보완하기 위해 표준 라이브러리를 설치.
+
+```bash
+npm install react-error-boundary
+```
+
+Step2. useSuspenseQuery 컴포넌트 설계 (src/components/UserProfile.tsx)
+
+```javascript
+import { useSuspenseQuery } from '@tanstack/react-query';
+import { fetchUser } from '../api/mockApi';
+import { userKeys } from '../queries/queryKeys';
+import type { User } from '../api/mockApi';
+
+const styles = {
+  container: { border: '2px solid #333', padding: '1.5rem', borderRadius: '12px', backgroundColor: '#f8f9fa' },
+  avatar: { width: '80px', borderRadius: '50%' }
+};
+
+export default function UserProfile({ id }: { id: number }) {
+  // 1. 성공한 데이터가 올 때까지 이 컴포넌트의 execution line은 중단(Suspend)됨
+  const { data: user } = useSuspenseQuery<User>({
+    queryKey: userKeys.detail(id),
+    queryFn: () => fetchUser(id),
+  });
+
+  // 2. 이 지점에서는 데이터 존재가 100% 보장됨 (if (!user) 같은 방어적 예외 처리 불필요)
+  return (
+    <div style={styles.container}>
+      <img src={user.avatar} alt={user.name} style={styles.avatar} />
+      <h1>{user.name}</h1>
+      <p>{user.email}</p>
+    </div>
+  );
+}
+
+```
