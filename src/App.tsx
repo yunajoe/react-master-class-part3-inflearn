@@ -1,7 +1,7 @@
-import PostEditorWrapper from "./components/PostEditorWrapper";
+import UserEditorWrapper from "./components/UserEditorWrapper";
 
 function App() {
-  return <PostEditorWrapper />;
+  return <UserEditorWrapper />;
 }
 
 export default App;
