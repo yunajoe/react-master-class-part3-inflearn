@@ -169,3 +169,22 @@ export const updatePost = async (
     }, 2000);
   });
 };
+
+export interface PostDto2 {
+  id: number;
+  title: string;
+  content: string;
+}
+
+export interface Post2 extends PostDto2 {
+  updatedAt: string;
+}
+
+// 수정 API (1초 지연)
+export const updatePostApi = async (updateData: PostDto2): Promise<Post2> => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({ ...updateData, updatedAt: new Date().toISOString() });
+    }, 1000);
+  });
+};

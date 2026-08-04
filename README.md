@@ -725,7 +725,7 @@ export default function UserProfile({ id }: { id: number }) {
 
 ---
 
-### 2. 🔄 `useMutation` 데이터 & 라이프사이클 흐름
+2. 🔄 `useMutation` 데이터 & 라이프사이클 흐름
 
 ```text
 [버튼 클릭 (mutate)]
@@ -748,7 +748,7 @@ export default function UserProfile({ id }: { id: number }) {
           [onSettled] ──▶ 라이프사이클 종료 로그 출력 및 로딩 상태 해제
 ```
 
-### 3. useMutation<TData, TError, TVariables, TContext>
+3. useMutation<TData, TError, TVariables, TContext>
 
 | 순서  | 제네릭 명        | 설명                                                  | 주요 활용 위치                                       |
 | :---: | :--------------- | :---------------------------------------------------- | :--------------------------------------------------- |
@@ -756,3 +756,57 @@ export default function UserProfile({ id }: { id: number }) {
 | **2** | **`TError`**     | 실패 시 발생하는 에러의 타입                          | `onError(error)`의 `error`                           |
 | **3** | **`TVariables`** | `mutate()` 실행 시 전달하는 인자의 타입               | `mutate(variables)`, `mutationFn(variables)`         |
 | **4** | **`TContext`**   | 요청 주기 동안 내부에서 공유할 임시 데이터(백업) 타입 | `onMutate` 리턴값, `onError`/`onSuccess`의 `context` |
+
+### 68. 서버 vs 브라우저 데이터 동기화 문제 완벽 정리
+
+1. 문제의 본질: 시간의 어긋남 (Time Skew)
+
+- 서버 (DB): 수정 요청(Mutation)이 성공하면 최신 상태로 갱신됨.
+- 브라우저 (RAM): 메모리 속 스냅샷(클라이언트 캐시)은 과거 상태에 머물러 있음.
+- 비유: 식당 점원에게 메뉴 변경 주문은 끝났는데, 내 테이블 위에는 여전히 예전 메뉴판이 놓여 있는 상황.
+
+2. 오답 1: 강제 새로고침 (window.location.reload())
+
+- 개발 한계에 부딪혔을 때 내뱉는 '마지막 항복 선언'과 같은 원시적인 방식
+- 새로고침의 3대 비극
+
+```
+a. 자원 낭비: JS, CSS, 이미지 등 수 메가바이트의 자원을 다시 다운로드함.
+b. 맥락(Context) 파괴: 스크롤 위치, 폼 작성 데이터 등 미저장 전역/지역 상태가 모두 초기화됨
+c. 화이트아웃(White-out): 앱이 재부팅되는 과정에서 화면이 깜빡이며 UX가 툭 끊김.
+
+```
+
+3. 오답 2: 수동 상태 동기화 (useState 수동 map 갱신)
+
+- 새로고침을 피하려고 setAllPosts(prev => prev.map(...))처럼 모든 연관 상태를 수동으로 고치는 방식
+- 수동 업데이트의 3대 단점
+
+```
+a. 명령형 코드 증가: '어떻게(How)' 바꿀지 일일이 나열해야 해서 가독성 악화.
+b. 인지 부하 & 실수 유발: 해당 데이터와 연결된 모든 상태를 개발자가 기억하고 고쳐야 함 (누락 위험)
+c. 경합 조건 (Race Condition): 여러 동시 요청 시 어떤 데이터가 진짜 최신 데이터인지 보장 불가능.
+
+```
+
+```javascript
+ * updatedPost: 서버로부터 성공적으로 수정되어 돌아온 최신 객체입니다.
+ */
+const onSuccess = (updatedPost: Post) => {
+  // 1. setAllPosts를 호출하여 기존 게시글 배열 상태를 수동으로 수정합니다.
+  // map 함수를 사용해 배열을 처음부터 끝까지 순회하며 수정된 게시글을 찾아 교체합니다.
+  setAllPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p));
+
+  // 2. 만약 연관된 다른 상태(활동 리스트 등)가 있다면 그곳도 수동으로 수정해야 합니다.
+  // 이 과정에서 개발자는 어떤 상태가 이 데이터와 연결되어 있는지 모두 기억해야 하는 '인지 부하'를 겪습니다.
+  setRecentActivity(prev => [updatedPost, ...prev]);
+};
+
+```
+
+4. 요약
+
+- Mutation 성공 후 서버 DB는 최신화되지만, 브라우저 RAM(캐시)은 과거 상태에 머물러 불일치가 발생한다.
+- 강제 새로고침은 자원 낭비, 상태 파괴, 화면 깜빡임을 유발하는 최악의 수단이다
+- 수동 상태 갱신 역시 인지 부하가 크고 상태 누락 및 경합 조건을 유발하는 위험한 방식
+- 올바른 해결책: TanStack Query의 queryClient.invalidateQueries를 통한 쿼리 무효화 또는 setQueryData를 통한 캐시 직접 갱신
