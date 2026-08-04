@@ -127,3 +127,45 @@ export const fetchDelayPosts = async (id: number): Promise<DelayPost[]> => {
     }, 2000);
   });
 };
+
+/**
+ *
+ * 인터페이스의 분리: 서버로부터 받아오는 게시글의 표준 규격인 Post와 수정 요청 시 사용하는 데이터 전송 객체인 UpdatePostDto를 분리했습니다.
+ * 이는 타입스크립트 엔진이 성공 시 반환되는 데이터의 형태를 정확히 이해하도록 돕습니다
+ */
+
+export interface MutationPost {
+  id: number;
+  name: string;
+  title: string;
+  content: string;
+}
+
+/**
+ * DTO의 역할:UpdatePostDto는 우리가 mutate 함수를 호출할 때 어떤 데이터를 인자로 넘겨야 하는지 엄격하게 규정하여 런타임 에러를 방지
+ */
+export interface UpdatePostDto {
+  id: number;
+  title: string;
+  content: string;
+}
+
+export const updatePost = async (
+  newPost: UpdatePostDto,
+): Promise<MutationPost> => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      /**
+       *  의도적인 에러 설계: 10%의 확률로 reject가 발생하도록 설계하여 onError 콜백이나 ErrorBoundary가 정상적으로 비상 상황을 감지하는지 테스트할 수 있는 환경을 마련
+       */
+      if (Math.random() < 0.1)
+        reject(new Error("서버에서 수정을 거절했습니다."));
+      resolve({
+        id: newPost.id,
+        name: "시니어 아키",
+        title: "기본 제목",
+        content: "기본 내용",
+      });
+    }, 2000);
+  });
+};

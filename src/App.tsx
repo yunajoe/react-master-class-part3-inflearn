@@ -1,7 +1,7 @@
-import OptimizedSuspense from "./components/OptimizedSuspense";
+import PostEditorWrapper from "./components/PostEditorWrapper";
 
 function App() {
-  return <OptimizedSuspense />;
+  return <PostEditorWrapper />;
 }
 
 export default App;
