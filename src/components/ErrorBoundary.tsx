@@ -8,16 +8,6 @@ const UserProfileSkeleton = () => (
     ⌛ 스켈레톤 UI가 데이터를 기다리는 중...
   </div>
 );
-
-const ErrorPage = ({ error }: { error: unknown }) => {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  return (
-    <div style={{ color: "red", padding: "1.5rem", border: "2px solid red" }}>
-      ❌ 차단기 작동: {errorMessage}
-    </div>
-  );
-};
-
 const queryClient = new QueryClient();
 
 function ErrorBoundaryComponent() {

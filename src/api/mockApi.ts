@@ -89,3 +89,41 @@ export const fetchUserDetail = async (id: number): Promise<UserDetail> => {
     }, 1000);
   });
 };
+
+export interface DelayUser {
+  id: number;
+  name: string;
+}
+
+export interface DelayPost {
+  id: number;
+  title: string;
+  content: string;
+}
+
+/**
+ * 유저 데이터를 가져오는 함수 (2초 지연)
+ */
+export const fetchDelayUser = async (id: number): Promise<DelayUser> => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      // ⚠️ 테스트를 위해 id가 0이면 에러 발생
+      if (id === 0) reject(new Error("존재하지 않는 유저입니다."));
+      resolve({ id, name: "시니어 아키텍트" });
+    }, 2000);
+  });
+};
+
+/**
+ * 게시글 목록을 가져오는 함수 (2초 지연)
+ */
+export const fetchDelayPosts = async (id: number): Promise<DelayPost[]> => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve([
+        { id: 1, title: "첫 번째 게시글", content: "내용입니다." },
+        { id: 2, title: "두 번째 게시글", content: "내용입니다." },
+      ]);
+    }, 2000);
+  });
+};

@@ -1,7 +1,7 @@
-import ErrorBoundaryComponent from "./components/ErrorBoundary";
+import OptimizedSuspense from "./components/OptimizedSuspense";
 
 function App() {
-  return <ErrorBoundaryComponent />;
+  return <OptimizedSuspense />;
 }
 
 export default App;
