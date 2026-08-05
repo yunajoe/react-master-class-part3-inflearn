@@ -1,7 +1,7 @@
-import UserEditorWrapper from "./components/UserEditorWrapper";
+import TodoEditorWrapper from "./components/TodoEditorWrapper";
 
 function App() {
-  return <UserEditorWrapper />;
+  return <TodoEditorWrapper />;
 }
 
 export default App;

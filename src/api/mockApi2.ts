@@ -27,3 +27,21 @@ export const fetchUserApi = async (id: number): Promise<User> => {
     }, 300);
   });
 };
+
+export interface Todo {
+  id: number;
+  text: string;
+}
+
+export const todoKeys = {
+  all: ["todos"] as const,
+};
+
+export const postTodoApi = async (newTodo: Todo): Promise<Todo> => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if (Math.random() < 0.3) reject(new Error("서버 저장에 실패했습니다."));
+      resolve(newTodo);
+    }, 1000);
+  });
+};
