@@ -139,3 +139,202 @@ export default function TodoEditor() {
 }
 
 ```
+
+### 71. 수동 무한 스크롤의 한계와 고통 정리
+
+1. 무한 스크롤 수동 구현이란? (누적형 데이터와 상태의 비대화)
+
+- 단일 페이지 데이터를 교체하는 일반 페이지네이션과 달리, 이전 데이터를 보존하며 새 데이터를 배열 뒤에 누적해서 이어 붙이는 방식
+
+```
+1. 상태의 비대화 (State Bloating): 데이터, 페이지 커서, 다음 페이지 여부, 로딩 상태 등 수많은 useState 선언 필요.
+2. 명령형 상태 제어: 페이지 번호 증가, 종료 조건 판단, 배열 병합 등 모든 로직을 개발자가 직접 계산하고 지시해야 함.
+3. 경합 조건 (Race Condition): 광클릭이나 스크롤 중복 요청 발생 시 동일 페이지 요청이 여러 번 날아가 중복 데이터 발생 위험
+4. 커서/페이지 계산: 응답 결과 길이를 직접 확인하여 termination condition(hasNextPage = false) 및 pageParam + 1 처리.
+5. 성능과 가독성의 충돌: 데이터가 많아질수록 [...prev, ...newPosts] 코드는 매번 거대한 배열을 새로 생성해야 하므로 비효율적
+6. 부수 효과의 관리: 스크롤 위치를 유지하거나, 특정 아이템만 삭제했을 때 전체 페이지 인덱스가 꼬이는 현상을 수동으로 해결하려면 수백 줄의 코드가 추가로 필요
+7. 스크롤 이벤트 결합의 어려움: 현재는 버튼 클릭이지만, 실제 서비스에서는 Intersection Observer와 결합해야 합니다. 이때 데이터 로직과 DOM 감시 로직이 한데 뒤섞여 컴포넌트의 순수성이 파괴
+```
+
+```javascript
+import { useState } from 'react';
+import { fetchPostsManual } from '../api/mockApi';
+import type { Post } from '../api/mockApi';
+
+export default function ManualScroll() {
+  // 🚩 [Pain 1] 관리해야 할 4가지 핵심 상태값들
+  const [allPosts, setAllPosts] = useState<Post[]>([]);
+  const [pageParam, setPageParam] = useState<number>(1);
+  const [hasNextPage, setHasNextPage] = useState<boolean>(true);
+  const [isFetching, setIsFetching] = useState<boolean>(false);
+
+  const fetchMorePosts = async () => {
+    // 🚩 [Pain 2] 수동 가드 로직 (중복 호출 방지)
+    if (!hasNextPage || isFetching) return;
+
+    setIsFetching(true);
+    try {
+      const newPosts = await fetchPostsManual(pageParam);
+
+      if (newPosts.length === 0) {
+        setHasNextPage(false);
+      } else {
+        /**
+         * 🚩 [Pain 3] 데이터 이어 붙이기 (Manual Concatenation)
+         * 스프레드 연산자를 사용하여 기존 배열 뒤에 새 배열을 강제로 합침
+         */
+        setAllPosts((prev) => [...prev, ...newPosts]);
+
+        // 🚩 [Pain 4] 페이지 번호 수동 계산
+        setPageParam((prev) => prev + 1);
+      }
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
+  return (
+    <div style={{ padding: '1rem', border: '1px solid #ddd', borderRadius: '8px' }}>
+      <ul style={{ listStyle: 'none', padding: 0 }}>
+        {allPosts.map((post) => (
+          <li key={post.id} style={{ padding: '0.8rem', borderBottom: '1px solid #eee' }}>
+            {post.title}
+          </li>
+        ))}
+      </ul>
+      {hasNextPage && (
+        <button
+          onClick={fetchMorePosts}
+          disabled={isFetching}
+          style={{ width: '100%', padding: '1rem', cursor: 'pointer' }}
+        >
+          {isFetching ? '⏳ 데이터 로딩 중...' : '➕ 게시글 더 보기'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+```
+
+### 72. TanStack Query useInfiniteQuery 완벽 정리
+
+1. useInfiniteQuery란? (상태 관리의 자동화)
+
+- 수동으로 관리하던 페이지 번호, 로딩 상태, 배열 병합([...prev, ...next]) 등의 로직을 엔진 내부에서 자동화하여 무한 스크롤을 손쉽게 구축하는 전용 훅
+
+```
+<!-- 장점 -->
+1. 자동화된 상태 관리: fetchNextPage, hasNextPage, isFetchingNextPage 등 필수 상태 및 컨트롤러 기본 제공.
+2. 정밀한 캐시 제어: 데이터를 단일 배열이 아닌 페이지 단위 주머니(이중 배열)로 나누어 관리하므로 특정 페이지 교체/무효화 용이.
+3. 최적화 옵션 지원: maxPages를 통한 메모리 관리, staleTime을 통한 과도한 백그라운드 재요청 방지.
+```
+
+2. 실습 가이드
+
+```javascript
+import { useInfiniteQuery } from '@tanstack/react-query';
+import type { InfiniteData } from '@tanstack/react-query';
+import { fetchPosts } from '../api/jsonPlaceholder';
+import type { Post } from '../api/jsonPlaceholder';
+
+export default function InfinitePostList() {
+  /**
+   * useInfiniteQuery의 5가지 제네릭:
+   * 1. TQueryFnData: API 반환 타입 (Post[])
+   * 2. TError: 에러 타입 (Error)
+   * 3. TData: 최종 캐시 구조 (InfiniteData<Post[], number>)
+   * 4. TQueryKey: 쿼리 키 타입 (string[])
+   * 5. TPageParam: 페이지 파라미터 타입 (number)
+   */
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    status,
+  } = useInfiniteQuery<Post[], Error, InfiniteData<Post[], number>, string[], number>({
+    queryKey: ['posts', 'infinite'],
+
+    // 1. queryFn: 엔진이 전달하는 pageParam으로 API 호출
+    queryFn: ({ pageParam = 1 }) => fetchPosts(pageParam),
+
+    // 2. getNextPageParam: 마지막 페이지 분석 후 다음 pageParam 반환 (undefined 반환 시 종료)
+    getNextPageParam: (lastPage, allPages) => {
+      return lastPage.length > 0 ? allPages.length + 1 : undefined;
+    },
+
+    // 3. initialPageParam: 첫 요청 시 사용할 기본 페이지값
+    initialPageParam: 1,
+
+    // 4. maxPages: 메모리 관리를 위해 유지할 최대 페이지 수 제한
+    maxPages: 5,
+
+    // 5. staleTime: 화면 전환/재이탈 시 누적된 전체 페이지 재요청 폭풍 방지
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // 이중 배열 주머니(pages)를 단일 리스트로 가볍게 평면화
+  const allPosts = data?.pages.flatMap((page) => page) ?? [];
+
+  if (status === 'pending') return <div>🚀 초기 데이터를 불러오는 중...</div>;
+
+  return (
+    <div style={{ padding: '1rem' }}>
+      <ul style={{ listStyle: 'none', padding: 0 }}>
+        {allPosts.map((post) => (
+          <li key={post.id} style={{ padding: '1rem', borderBottom: '1px solid #eee' }}>
+            <strong>{post.id}. {post.title}</strong>
+            <p style={{ color: '#666', fontSize: '0.9rem' }}>{post.body.substring(0, 80)}...</p>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        onClick={() => fetchNextPage()}
+        disabled={!hasNextPage || isFetchingNextPage}
+        style={{
+          width: '100%',
+          padding: '1rem',
+          backgroundColor: hasNextPage ? '#007bff' : '#ccc',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: hasNextPage ? 'pointer' : 'not-allowed'
+        }}
+      >
+        {isFetchingNextPage ? '⏳ 불러오는 중...' : hasNextPage ? '➕ 게시글 더 보기' : '🏁 마지막 페이지입니다'}
+      </button>
+    </div>
+  );
+}
+```
+
+3. 심층 아키텍처 및 실무 최적화 정리
+
+- 데이터를 단일 배열이 아닌 페이지 단위 주머니(이중 배열)로 분할 관리하는 이유
+
+```
+- O(N) 순회 비용 절감: 만약 1만 개의 데이터를 단일 배열로 다루면, 데이터 하나를 수정할 때 전체 1만 번을 순회해야 함.
+- 정밀한 부분 갱신: 페이지 단위로 분할되어 있어 특정 페이지의 데이터만 정밀하게 타격하여 수정하거나 무효화(Invalidate)할 수 있음.
+- 불필요한 리렌더링 방지: 변경이 필요한 주머니(페이지)만 교체하여 메모리 연산과 UI 업데이트 최적화.
+
+```
+
+- maxPages의 실무적 가치 (메모리 누수 방지)
+
+```
+- 스크롤이 깊어질수록 과도하게 데이터가 쌓이는 메모리 폭증 현상을 방지하는 옵션
+- 윈도우: maxPages: 5 설정 시, 6페이지를 불러오면 가장 오래된 1페이지 데이터를 메모리에서 자동으로 제거.
+- 메모리 점유율 방어: 저사양 기기나 모바일 환경에서 무한 스크롤 진행 시 발생할 수 있는 브라우저 튕김/버벅임 현상 차단.
+- Virtual List 연동: TanStack Virtual 등의 가상 리스트 라이브러리와 조합 시 메모리 및 DOM 노드 수를 완벽하게 제어.
+```
+
+- staleTime 설정의 필수성 (네트워크 재요청 폭풍 방지)
+
+```
+- 누적형 데이터 구조에서 발생할 수 있는 서버 과부하(Waterfall Fetching) 방지
+- 기본값(staleTime: 0)의 위험: 사용자가 탭을 전환하거나 윈도우 포커스를 다시 얻을 때, 지금까지 누적된 20~30개 페이지 전체를 한꺼번에 재요청함.
+- 서버 과부하 방지: 적절한 staleTime(예: 5분)을 부여하여 데이터의 신선도를 유지하고, 불필요한 백그라운드 재요청 폭풍을 차단.
+
+```

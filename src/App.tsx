@@ -1,7 +1,5 @@
-import TodoEditorWrapper from "./components/TodoEditorWrapper";
-
 function App() {
-  return <TodoEditorWrapper />;
+  return <>test</>;
 }
 
 export default App;
