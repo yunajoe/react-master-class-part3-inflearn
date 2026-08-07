@@ -1,5 +1,7 @@
+import PostListWrapper from "./components/PostListWrapper";
+
 function App() {
-  return <>test</>;
+  return <PostListWrapper />;
 }
 
 export default App;
