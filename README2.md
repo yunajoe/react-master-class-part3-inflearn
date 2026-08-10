@@ -369,3 +369,37 @@ export default function InfinitePostList() {
 
 
 ```
+
+### 74. 데이터 공백기와 CLS (Cumulative Layout Shift)
+
+- 핵심 문제: 데이터 공백기와 CLS (Cumulative Layout Shift)
+
+```
+queryKey가 변경되면 TanStack Query는 새로운 데이터를 요청하며 기존 데이터를 버리고 data: undefined 상태로 들어갑니다. 이로 인해 리스트 영역이 순간적으로 소멸하면서 하단 레이아웃이 위로 솟구치는 시각적 깜빡임과 layout shift 현상이 발생
+
+1. 데이터의 증발: 검색어 입력 시 기존 결과 목록이 즉시 사라짐
+2. 공간 실종 (CLS): 리스트 높이가 0px가 되면서 푸터 등 하단 UI가 끌려 올라옴
+3. UX 단절: 로딩 스피너 전환 시 사용자의 시각적 흐름 파괴 및 불안감 유발
+
+```
+
+| 구분                | 발생 원인                                                    | 시각적 영향                                 |
+| :------------------ | :----------------------------------------------------------- | :------------------------------------------ |
+| **Query Key 변경**  | 새로운 키 생성 시 기존 데이터를 즉시 하드 리셋(Hard Reset)함 | `data`가 `undefined`로 즉시 초기화          |
+| **조건부 렌더링**   | `isLoading`일 때 리스트 요소 전체를 DOM에서 제거             | 공간 높이가 `0px`로 축소                    |
+| **브라우저 Reflow** | 영역 소멸로 인해 하단 요소의 위치 재계산                     | 푸터가 검색창 바로 밑으로 솟구치는 CLS 발생 |
+
+### 75. 아키텍처 원칙: 대역 데이터와 상태의 재정의
+
+- TanStack Query v5의 placeholderData: keepPreviousData 옵션을 활용하면 queryKey가 변경되어도 기존 데이터를 즉시 삭제하지 않고 새 데이터가 도착할 때까지 화면을 유지합니다.
+
+```
+1. 시각적 연속성: 데이터 요청 중에도 이전 리스트를 '대역(Stand-in)'으로 유지하여 UI 삭제 및 깜빡임 원천 차단
+
+2. 레이아웃 고정: minHeight 설정을 병행해 리스트 항목 수 변경 시 발생하는 CLS(Cumulative Layout Shift) 방어
+
+3. 직관적 피드백: isPlaceholderData로 이전 데이터임을 알리고(opacity: 0.5), isFetching으로 업데이트 진행 상황만 가볍게 노출
+
+
+
+```

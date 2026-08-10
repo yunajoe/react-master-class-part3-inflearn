@@ -1,7 +1,7 @@
-import PostListWrapper from "./components/PostListWrapper";
+import SearchListWrapper from "./components/SearchListWrapper";
 
 function App() {
-  return <PostListWrapper />;
+  return <SearchListWrapper />;
 }
 
 export default App;
