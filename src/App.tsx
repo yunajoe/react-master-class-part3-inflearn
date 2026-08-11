@@ -1,7 +1,7 @@
-import SearchListWrapper from "./components/SearchListWrapper";
+import ProfileSearchWrapper from "./components/ProfileSearchWrapper";
 
 function App() {
-  return <SearchListWrapper />;
+  return <ProfileSearchWrapper />;
 }
 
 export default App;
