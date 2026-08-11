@@ -489,3 +489,38 @@ queryKey가 변경되면 TanStack Query는 새로운 데이터를 요청하며 �
 - 새로고침 시 공룡(No Internet) 현상: 브라우저가 앱 자체(HTML/JS 껍데기)를 불러오지 못해 발생.
 
 - 최종 해결책: 오프라인 새로고침까지 완벽히 차단하려면 나중에 배울 PWA(Service Worker) 기술과 결합해야 함.
+
+### 79. Query Batching 전략을 통한 서버 부하 최소화
+
+1. 핵심 요약
+
+- 쿼리 배칭(Query Batching)이란?
+- 개념: 여러 개의 개별 작업(요청)을 하나의 그룹(Batch)으로 묶어 한꺼번에 처리하는 성능 최적화 기술
+- 비유: 마트에서 물건 10개를 살 때 하나씩 결제하러 가는 것(개별 처리)이 아니라, 카트에 다 담아 한 번에 결제하는 것
+- 해결하는 문제:
+
+```
+- 네트워크 폭풍(Network Storm): 수백 번의 HTTP 요청으로 인한 브라우저 마비 및 DB 커넥션 고갈 방지
+- 원자성(Atomicity) 파괴: 일부만 처리되고 실패하는 현상을 막아 "전부 성공 또는 전부 취소(Rollback)" 보장
+```
+
+2. 디렉토리 구조
+
+```
+my-zustand/
+ ├── public/
+ │    └── mockServiceWorker.js  # MSW 브라우저 워커 파일
+ ├── src/
+ │    ├── api/
+ │    │    └── userApi.ts        # Bulk Delete Fetch 로직
+ │    ├── components/
+ │    │    └── UserAdminPage.tsx  # 일괄 삭제 UI 컴포넌트
+ │    ├── hooks/
+ │    │    └── useBulkDelete.ts   # TanStack Query Mutation 훅
+ │    ├── mocks/
+ │    │    ├── browser.ts        # 브라우저 전용 MSW 설정
+ │    │    └── handlers.ts       # Bulk Delete Mock 핸들러
+ │    ├── App.tsx               # QueryClientProvider 및 레이아웃
+ │    └── main.tsx              # MSW 활성화 및 엔트리 포인트
+ └── vite.config.ts              # MSW 번들링 이슈 해결 설정
+```
