@@ -524,3 +524,9 @@ my-zustand/
  │    └── main.tsx              # MSW 활성화 및 엔트리 포인트
  └── vite.config.ts              # MSW 번들링 이슈 해결 설정
 ```
+
+3. 쿼리 배칭의 3대 핵심 가치
+
+- 기술적 가치 (Network Cost): 100회 요청 → 1회 요청으로 대폭 감소. 계단식 네트워크 지연(Waterfall) 제거.
+- 비즈니스 가치 (Atomicity): DB 트랜잭션(WHERE id IN (...))을 통해 전체 성공 또는 전체 실패(Rollback)를 보장하여 데이터 꼬임 방지.
+- UX 가치 (Resource & Stability): 브라우저 동시 연결 제한(최대 6개)을 독점하지 않아 화면 멈춤(Pending) 현상 예방.
